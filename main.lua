@@ -78,7 +78,6 @@ function Start.teleportToSpawn(pid)
 end
 
 function Start.AddItem(pid, refId)
-    
     local player = Players[pid]
     local item = {
         refId = refId,
@@ -87,14 +86,6 @@ function Start.AddItem(pid, refId)
         enchantmentCharge = -1,
         soul = "" 
     }
-    inventoryHelper.addItem(
-        player.data.inventory,
-        item.refId,
-        item.count,
-        item.charge,
-        item.enchantmentCharge,
-        item.soul
-    )
     player:LoadItemChanges({item}, enumerations.inventory.ADD)
 end
 
