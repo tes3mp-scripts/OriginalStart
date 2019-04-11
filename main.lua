@@ -2,18 +2,21 @@ local Start = {}
 
 Start.START_ON_DOCK = false
 Start.CLEAN_ON_UNLOAD = true
+Start.CHANGE_CONFIG_SPAWN = true
 
 Start.scriptName = "OriginalStart"
 
 Start.defaultConfig = {
     START_ON_DOCK = false,
-    CLEAN_ON_UNLOAD = true
+    CLEAN_ON_UNLOAD = true,
+    CHANGE_CONFIG_SPAWN = true
 }
 
 if DataManager ~= nil then
     Start.config = DataManager.loadConfiguration(Start.scriptName, Start.defaultConfig)
     Start.START_ON_DOCK = Start.config.START_ON_DOCK
     Start.CLEAN_ON_UNLOAD = Start.config.CLEAN_ON_UNLOAD
+    Start.CHANGE_CONFIG_SPAWN = Start.config.CHANGE_CONFIG_SPAWN
 end
 
 Start.OFFICE = "Seyda Neen, Census and Excise Office"
@@ -51,6 +54,19 @@ else
         posZ = 92.26,
         rotX = 0,
         rotZ = -0.97
+    }
+end
+
+if Start.CHANGE_CONFIG_SPAWN then
+    config.defaultSpawnCell = spawnLocation.cell
+    config.defaultSpawnPos = {
+        spawnLocation.posX,
+        spawnLocation.posY,
+        spawnLocation.posZ
+    }
+    config.defaultSpawnRot = {
+        spawnLocation.rotX,
+        spawnLocation.rotZ
     }
 end
 
@@ -175,7 +191,9 @@ function Start.OnPlayerEndCharGen(eventStatus, pid)
     --return to the previous value
     WorldInstance.data.customVariables.deliveredCaiusPackage = Start.deliveredCaiusPackage
 
-    Start.teleportToSpawn(pid)
+    if not Start.CHANGE_CONFIG_SPAWN then
+        Start.teleportToSpawn(pid)
+    end
 
     Start.fixCharGen(pid)
 
