@@ -30,47 +30,50 @@ contentFixer.FixCell = function(pid)
     return
 end
 
+local spawnLocation = nil
+
+if not Start.START_ON_DOCK then
+    spawnLocation = {
+        cell = "Imperial Prison Ship",
+        regionName = "bitter coast region",
+        posX = 61,
+        posY = -136.5,
+        posZ = -104.25,
+        rotX = 0,
+        rotZ = -0.5
+    }
+else
+    spawnLocation = {
+        cell = "-2, -9",
+        regionName = "bitter coast region",
+        posX = -8861.18,
+        posY = -73120.13,
+        posZ = 92.26,
+        rotX = 0,
+        rotZ = -0.97
+    }
+end
+
 
 function Start.teleportToSpawn(pid)
     local player = Players[pid]
 
-    local location = nil
+    player.data.location = spawnLocation
+    player:Save()
 
-    if not Start.START_ON_DOCK then
-        location = {
-            cell = "Imperial Prison Ship",
-            regionName = "bitter coast region",
-            posX = 61,
-            posY = -136.5,
-            posZ = -104.25,
-            rotX = 0,
-            rotZ = -0.5
-        }
-    else
-        location = {
-            cell = "-2, -9",
-            regionName = "bitter coast region",
-            posX = -8861.18,
-            posY = -73120.13,
-            posZ = 92.26,
-            rotX = 0,
-            rotZ = -0.97
-        }
-    end
-
-    tes3mp.SetCell(pid, location.cell)
+    tes3mp.SetCell(pid, spawnLocation.cell)
 
     tes3mp.SetRot(
         pid,
-        location.rotX,
-        location.rotZ
+        spawnLocation.rotX,
+        spawnLocation.rotZ
     )
 
     tes3mp.SetPos(
         pid,
-        location.posX,
-        location.posY,
-        location.posZ
+        spawnLocation.posX,
+        spawnLocation.posY,
+        spawnLocation.posZ
     )
 
     tes3mp.SendCell(pid)
@@ -98,7 +101,7 @@ function Start.fixCharGen(pid)
     --skip jiub's question about player's name
     runConsole(pid, "set \"chargen name\".state to 20", false)
     --make the boat guard walk as normal
-    runConsole(pid, "set \"chargen boat guard 2\".state to 5", false)
+    runConsole(pid, "set \"chargen boat guard 2\".state to 0", false)
     
     --disable most speech and movement for the dock guard
     runConsole(pid, "set \"chargen dock guard\".state to -1", false)
@@ -183,6 +186,7 @@ end
 customEventHooks.registerValidator("OnPlayerEndCharGen", Start.OnPlayerEndCharGenV)
 customEventHooks.registerHandler("OnPlayerEndCharGen", Start.OnPlayerEndCharGen)
 
+
 Start.CellFixData = {}
 -- Delete the chargen scroll as we already gave it to the player
 Start.CellFixData["Seyda Neen, Census and Excise Office"] = { 172859 }
@@ -237,6 +241,7 @@ function Start.OnPlayerFinishLogin(eventStatus, pid)
 end
 
 customEventHooks.registerHandler("OnPlayerFinishLogin", Start.OnPlayerFinishLogin)
+
 
 function Start.cleanDockCell(pid, cellDescription)
     --clean up garbage objects spawned during character creation
