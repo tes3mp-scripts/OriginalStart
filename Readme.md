@@ -2,7 +2,7 @@ Fixes most of the issues related to vanilla game start. However, the tes3mp char
 
 Unlike my other scripts, doesn't require the [DataManager](https://github.com/tes3mp-scripts/DataManager) (but still supports it if installed).
 
-To install, either `git pull` it, or download the repository as a folder, rename it to `OriginalStart` and then put it into your `server/scripts/custom`. After doing either of those, add `require("custom.OriginalStart.main)` to your `server/scripts/customScripts.lua`.
+To install, either `git pull` it, or download the repository as a folder, rename it to `OriginalStart` and then put it into your `server/scripts/custom`. After doing either of those, add `require("custom.OriginalStart.main")` to your `server/scripts/customScripts.lua`.
 
 If you are using [DataManager](https://github.com/tes3mp-scripts/DataManager), you can edit `data/custom/__config_OriginalStart.json`, otherwise you can edit lines `3` and `4` of `main.lua`.  
 * `START_ON_DOCK` if `false`, spawns you at the ship like in vanilla Morrowind. If `true`, you spawn standing at the dock and the ship is disabled.
