@@ -1,9 +1,5 @@
 local Start = {}
 
-Start.START_ON_DOCK = false
-Start.CLEAN_ON_UNLOAD = true
-Start.CHANGE_CONFIG_SPAWN = true
-
 Start.scriptName = "OriginalStart"
 
 Start.defaultConfig = {
@@ -12,14 +8,27 @@ Start.defaultConfig = {
     CHANGE_CONFIG_SPAWN = true
 }
 
-if DataManager ~= nil then
-    Start.config = DataManager.loadConfiguration(Start.scriptName, Start.defaultConfig)
-    Start.START_ON_DOCK = Start.config.START_ON_DOCK
-    Start.CLEAN_ON_UNLOAD = Start.config.CLEAN_ON_UNLOAD
-    Start.CHANGE_CONFIG_SPAWN = Start.config.CHANGE_CONFIG_SPAWN
-end
+Start.defaultData = {
+    chargenPlayers = {}
+}
+
+Start.config = DataManager.loadConfiguration(Start.scriptName, Start.defaultConfig)
+Start.data = DataManager.loadData(Start.scriptName, Start.defaultData)
+
+Start.EXIT_DOOR = "119659-0"
+
+Start.CHARGEN_CELLS = {
+    ["Imperial Prison Ship"] = true,
+    ["-2, -9"] = true,
+    ["Seyda Neen, Census and Excise Office"] = true
+}
 
 Start.OFFICE = "Seyda Neen, Census and Excise Office"
+
+Start.OFFICE_DOORS = {
+    ["119513-0"] = "ex_nord_door_01",
+    ["172860-0"]= "chargen_door_hall" 
+}
 
 Start.deliveredCaiusPackage = nil
 
@@ -35,7 +44,7 @@ end
 
 local spawnLocation = nil
 
-if not Start.START_ON_DOCK then
+if not Start.config.START_ON_DOCK then
     spawnLocation = {
         cell = "Imperial Prison Ship",
         regionName = "bitter coast region",
@@ -57,7 +66,7 @@ else
     }
 end
 
-if Start.CHANGE_CONFIG_SPAWN then
+if Start.config.CHANGE_CONFIG_SPAWN then
     config.defaultSpawnCell = spawnLocation.cell
     config.defaultSpawnPos = {
         spawnLocation.posX,
@@ -70,6 +79,9 @@ if Start.CHANGE_CONFIG_SPAWN then
     }
 end
 
+function Start.getPlayerName(pid)
+    return string.lower(Players[pid].accountName)
+end
 
 function Start.teleportToSpawn(pid)
     local player = Players[pid]
@@ -111,6 +123,7 @@ end
 local runConsole = logicHandler.RunConsoleCommandOnPlayer
 
 function Start.fixCharGen(pid)
+    Start.data.chargenPlayers[Start.getPlayerName(pid)] = true
     --enable some parts of the chargen sequence
     runConsole(pid, "set CharGenState to 10", false)
 
@@ -131,6 +144,7 @@ function Start.fixCharGen(pid)
 end
 
 function Start.fixLogin(pid)
+    Start.data.chargenPlayers[Start.getPlayerName(pid)] = nil
     --disable most of the obtrusive chargen logic
     runConsole(pid, "set CharGenState to -1", false)
 
@@ -191,7 +205,7 @@ function Start.OnPlayerEndCharGen(eventStatus, pid)
     --return to the previous value
     WorldInstance.data.customVariables.deliveredCaiusPackage = Start.deliveredCaiusPackage
 
-    if not Start.CHANGE_CONFIG_SPAWN then
+    if not Start.config.CHANGE_CONFIG_SPAWN then
         Start.teleportToSpawn(pid)
     end
 
@@ -207,9 +221,9 @@ customEventHooks.registerHandler("OnPlayerEndCharGen", Start.OnPlayerEndCharGen)
 
 Start.CellFixData = {}
 -- Delete the chargen scroll as we already gave it to the player
-Start.CellFixData["Seyda Neen, Census and Excise Office"] = { 172859 }
+Start.CellFixData[Start.OFFICE] = { 172859 }
 
-if Start.START_ON_DOCK then
+if Start.config.START_ON_DOCK then
     -- Delete the chargen boat and associated guards and objects
     Start.CellFixData["-1, -9"] = { 268178, 297457, 297459, 297460, 299125 }
     Start.CellFixData["-2, -9"] = { 172848, 172850, 289104, 297461, 397559 }
@@ -217,7 +231,7 @@ if Start.START_ON_DOCK then
 end
 
 function Start.OnCellLoad(eventStatus, pid, cellDescription)
-    if Start.CellFixData[cellDescription]~= nil then 
+    if Start.CellFixData[cellDescription] ~= nil then 
         tes3mp.ClearObjectList()
         tes3mp.SetObjectListPid(pid)
         tes3mp.SetObjectListCell(cellDescription)
@@ -233,29 +247,53 @@ function Start.OnCellLoad(eventStatus, pid, cellDescription)
     end
 
     if cellDescription == Start.OFFICE then
-        --unlock the census door
-        local uniqueIndex = "119513-0"
+        --unlock the census office doors
 
         local cellData = LoadedCells[cellDescription].data
-        
-        if cellData.objectData[uniqueIndex] ~= nil then
-            cellData.objectData[uniqueIndex].lockLevel = 0
-        else
-            cellData.objectData[uniqueIndex] = {
-                lockLevel = 0,
-                refId = "ex_nord_door_01"
-            }
+        local updatedUniqueIndexes = {}
+
+        for uniqueIndex, refId in pairs(Start.OFFICE_DOORS) do
+            if cellData.objectData[uniqueIndex] ~= nil then
+                if cellData.objectData[uniqueIndex].lockLevel ~= 0 then
+                    cellData.objectData[uniqueIndex].lockLevel = 0
+                    table.insert(updatedUniqueIndexes, uniqueIndex)
+                end
+            else
+                cellData.objectData[uniqueIndex] = {
+                    lockLevel = 0,
+                    refId = refId
+                }
+                table.insert(updatedUniqueIndexes, uniqueIndex)
+            end
         end
 
-        LoadedCells[cellDescription]:LoadObjectsLocked(pid, cellData.objectData, {uniqueIndex})
+        LoadedCells[cellDescription]:LoadObjectsLocked(pid, cellData.objectData, updatedUniqueIndexes)
     end
 end
 
 customEventHooks.registerHandler("OnCellLoad", Start.OnCellLoad)
 
+function Start.OnPlayerCellChange(eventStatus, pid)
+    if Start.data.chargenPlayers[Start.getPlayerName(pid)] ~= nil then
+        local cellDescription = tes3mp.GetCell(pid)
+        tes3mp.SendMessage(pid,cellDescription .. "\n")
+
+        --player has left the chargen area
+        if Start.CHARGEN_CELLS[cellDescription] == nil then
+            Start.fixLogin(pid)
+        end
+    end
+end
+
+customEventHooks.registerHandler("OnPlayerCellChange", Start.OnPlayerCellChange)
+
 
 function Start.OnPlayerFinishLogin(eventStatus, pid)
-    Start.fixLogin(pid)
+    if Start.data.chargenPlayers[Start.getPlayerName(pid)] ~= nil then
+        Start.fixCharGen(pid)
+    else
+        Start.fixLogin(pid)
+    end
 end
 
 customEventHooks.registerHandler("OnPlayerFinishLogin", Start.OnPlayerFinishLogin)
@@ -280,7 +318,15 @@ function Start.OnCellUnload(eventStatus, pid, cellDescription)
     Start.cleanDockCell(pid, cellDescription)
 end
 
-customEventHooks.registerValidator("OnCellUnload", Start.cleanChargenCollision)
+if Start.config.CLEAN_ON_UNLOAD then
+    customEventHooks.registerValidator("OnCellUnload", Start.cleanChargenCollision)
+end
+
+function Start.OnServerExit(eventStatus)
+    DataManager.saveData(Start.scriptName, Start.data)
+end
+
+customEventHooks.registerHandler("OnServerExit", Start.OnServerExit)
 
 
 return Start
