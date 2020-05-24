@@ -26,8 +26,8 @@ Start.CHARGEN_CELLS = {
 Start.OFFICE = "Seyda Neen, Census and Excise Office"
 
 Start.OFFICE_DOORS = {
-    ["119513-0"] = "ex_nord_door_01",
-    ["172860-0"]= "chargen_door_hall" 
+    ["ex_nord_door_01"] = "119513-0",
+    ["chargen_door_hall"] = "172860-0"
 }
 
 Start.deliveredCaiusPackage = nil
@@ -81,6 +81,10 @@ end
 
 function Start.getPlayerName(pid)
     return string.lower(Players[pid].accountName)
+end
+
+function Start.isPlayerChargen(pid)
+    return Start.data.chargenPlayers[Start.getPlayerName(pid)] ~= nil
 end
 
 function Start.teleportToSpawn(pid)
@@ -218,6 +222,15 @@ end
 customEventHooks.registerValidator("OnPlayerEndCharGen", Start.OnPlayerEndCharGenV)
 customEventHooks.registerHandler("OnPlayerEndCharGen", Start.OnPlayerEndCharGen)
 
+function Start.OnPlayerFinishLogin(eventStatus, pid)
+    if Start.isPlayerChargen(pid) then
+        Start.fixCharGen(pid)
+    else
+        Start.fixLogin(pid)
+    end
+end
+customEventHooks.registerHandler("OnPlayerFinishLogin", Start.OnPlayerFinishLogin)
+
 
 Start.CellFixData = {}
 -- Delete the chargen scroll as we already gave it to the player
@@ -248,35 +261,36 @@ function Start.OnCellLoad(eventStatus, pid, cellDescription)
 
     if cellDescription == Start.OFFICE then
         --unlock the census office doors
-
         local cellData = LoadedCells[cellDescription].data
         local updatedUniqueIndexes = {}
 
-        for uniqueIndex, refId in pairs(Start.OFFICE_DOORS) do
+        local updated = false
+
+        for refId, uniqueIndex in pairs(Start.OFFICE_DOORS) do
             if cellData.objectData[uniqueIndex] ~= nil then
                 if cellData.objectData[uniqueIndex].lockLevel ~= 0 then
                     cellData.objectData[uniqueIndex].lockLevel = 0
-                    table.insert(updatedUniqueIndexes, uniqueIndex)
+                    updated = true
                 end
             else
                 cellData.objectData[uniqueIndex] = {
                     lockLevel = 0,
                     refId = refId
                 }
-                table.insert(updatedUniqueIndexes, uniqueIndex)
+                updated = true
             end
         end
 
-        LoadedCells[cellDescription]:LoadObjectsLocked(pid, cellData.objectData, updatedUniqueIndexes)
+        if updated or Start.isPlayerChargen(pid)  then
+            LoadedCells[cellDescription]:LoadObjectsLocked(pid, cellData.objectData, Start.OFFICE_DOORS)
+        end
     end
 end
-
 customEventHooks.registerHandler("OnCellLoad", Start.OnCellLoad)
 
 function Start.OnPlayerCellChange(eventStatus, pid)
-    if Start.data.chargenPlayers[Start.getPlayerName(pid)] ~= nil then
+    if Start.isPlayerChargen(pid) then
         local cellDescription = tes3mp.GetCell(pid)
-        tes3mp.SendMessage(pid,cellDescription .. "\n")
 
         --player has left the chargen area
         if Start.CHARGEN_CELLS[cellDescription] == nil then
@@ -284,19 +298,7 @@ function Start.OnPlayerCellChange(eventStatus, pid)
         end
     end
 end
-
 customEventHooks.registerHandler("OnPlayerCellChange", Start.OnPlayerCellChange)
-
-
-function Start.OnPlayerFinishLogin(eventStatus, pid)
-    if Start.data.chargenPlayers[Start.getPlayerName(pid)] ~= nil then
-        Start.fixCharGen(pid)
-    else
-        Start.fixLogin(pid)
-    end
-end
-
-customEventHooks.registerHandler("OnPlayerFinishLogin", Start.OnPlayerFinishLogin)
 
 
 function Start.cleanDockCell(pid, cellDescription)
@@ -313,20 +315,30 @@ function Start.cleanDockCell(pid, cellDescription)
         end
     end
 end
-
-function Start.OnCellUnload(eventStatus, pid, cellDescription)
-    Start.cleanDockCell(pid, cellDescription)
-end
-
 if Start.config.CLEAN_ON_UNLOAD then
-    customEventHooks.registerValidator("OnCellUnload", Start.cleanChargenCollision)
+    customEventHooks.registerValidator("OnCellUnload", function(eventStatus, pid, cellDescription)
+        Start.cleanDockCell(pid, cellDescription)
+    end)
 end
 
 function Start.OnServerExit(eventStatus)
     DataManager.saveData(Start.scriptName, Start.data)
 end
-
 customEventHooks.registerHandler("OnServerExit", Start.OnServerExit)
 
+function Start.OnObjectActivate(eventStatus, pid, cellDescription, objects, players)
+    if not eventStatus.validCustomHandlers then
+        return
+    end
+    if Start.isPlayerChargen(pid) then
+        for _, obj in pairs(objects) do
+            if obj.uniqueIndex == Start.EXIT_DOOR then
+                Start.fixLogin(pid)
+                break
+            end
+        end
+    end
+end
+customEventHooks.registerHandler("OnObjectActivate", Start.OnObjectActivate)
 
 return Start
