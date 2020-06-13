@@ -223,10 +223,12 @@ customEventHooks.registerValidator("OnPlayerEndCharGen", Start.OnPlayerEndCharGe
 customEventHooks.registerHandler("OnPlayerEndCharGen", Start.OnPlayerEndCharGen)
 
 function Start.OnPlayerFinishLogin(eventStatus, pid)
-    if Start.isPlayerChargen(pid) then
-        Start.fixCharGen(pid)
-    else
-        Start.fixLogin(pid)
+    if eventStatus.validCustomHandlers then
+        if Start.isPlayerChargen(pid) then
+            Start.fixCharGen(pid)
+        else
+            Start.fixLogin(pid)
+        end
     end
 end
 customEventHooks.registerHandler("OnPlayerFinishLogin", Start.OnPlayerFinishLogin)
@@ -244,58 +246,49 @@ if Start.config.START_ON_DOCK then
 end
 
 function Start.OnCellLoad(eventStatus, pid, cellDescription)
-    if Start.CellFixData[cellDescription] ~= nil then 
-        tes3mp.ClearObjectList()
-        tes3mp.SetObjectListPid(pid)
-        tes3mp.SetObjectListCell(cellDescription)
+    if eventStatus.validCustomHandlers then
+        if Start.CellFixData[cellDescription] ~= nil then
+            tes3mp.ClearObjectList()
+            tes3mp.SetObjectListPid(pid)
+            tes3mp.SetObjectListCell(cellDescription)
 
-        for arrayIndex, refNum in pairs(Start.CellFixData[cellDescription]) do
-            tes3mp.SetObjectRefNum(refNum)
-            tes3mp.SetObjectMpNum(0)
-            tes3mp.SetObjectRefId("")
-            tes3mp.AddObject()
-        end
-
-        tes3mp.SendObjectDelete()
-    end
-
-    if cellDescription == Start.OFFICE then
-        --unlock the census office doors
-        local cellData = LoadedCells[cellDescription].data
-        local updatedUniqueIndexes = {}
-
-        local updated = false
-
-        for refId, uniqueIndex in pairs(Start.OFFICE_DOORS) do
-            if cellData.objectData[uniqueIndex] ~= nil then
-                if cellData.objectData[uniqueIndex].lockLevel ~= 0 then
-                    cellData.objectData[uniqueIndex].lockLevel = 0
-                    updated = true
-                end
-            else
-                cellData.objectData[uniqueIndex] = {
-                    lockLevel = 0,
-                    refId = refId
-                }
-                updated = true
+            for _, refNum in pairs(Start.CellFixData[cellDescription]) do
+                tes3mp.SetObjectRefNum(refNum)
+                tes3mp.SetObjectMpNum(0)
+                tes3mp.SetObjectRefId("")
+                tes3mp.AddObject()
             end
-        end
 
-        if updated or Start.isPlayerChargen(pid)  then
-            LoadedCells[cellDescription]:LoadObjectsLocked(pid, cellData.objectData, Start.OFFICE_DOORS)
+            tes3mp.SendObjectDelete()
         end
     end
 end
 customEventHooks.registerHandler("OnCellLoad", Start.OnCellLoad)
 
 function Start.OnPlayerCellChange(eventStatus, pid)
+    local cellDescription = tes3mp.GetCell(pid)
     if Start.isPlayerChargen(pid) then
-        local cellDescription = tes3mp.GetCell(pid)
-
         --player has left the chargen area
         if Start.CHARGEN_CELLS[cellDescription] == nil then
             Start.fixLogin(pid)
         end
+    end
+    if cellDescription == Start.OFFICE then
+        --unlock the census office doors
+        local cellData = LoadedCells[cellDescription].data
+        for refId, uniqueIndex in pairs(Start.OFFICE_DOORS) do
+            if cellData.objectData[uniqueIndex] ~= nil then
+                if cellData.objectData[uniqueIndex].lockLevel ~= 0 then
+                    cellData.objectData[uniqueIndex].lockLevel = 0
+                end
+            else
+                cellData.objectData[uniqueIndex] = {
+                    lockLevel = 0,
+                    refId = refId
+                }
+            end
+        end
+        LoadedCells[cellDescription]:LoadObjectsLocked(pid, cellData.objectData, Start.OFFICE_DOORS)
     end
 end
 customEventHooks.registerHandler("OnPlayerCellChange", Start.OnPlayerCellChange)
@@ -305,36 +298,38 @@ function Start.cleanDockCell(pid, cellDescription)
     --clean up garbage objects spawned during character creation
     if cellDescription == "-2, -9" then
         local targetRefId = "chargencollision - extra"
-        local cellDescription = "-2, -9"
         local cellData = LoadedCells[cellDescription].data
 
-        for uniqueIndex, data in pairs(cellData) do
+        for uniqueIndex, data in pairs(cellData.objectData) do
             if data.refId == targetRefId then
-                cellData[uniqueIndex] = nil
+                cellData.objectData[uniqueIndex] = nil
             end
         end
     end
 end
 if Start.config.CLEAN_ON_UNLOAD then
     customEventHooks.registerValidator("OnCellUnload", function(eventStatus, pid, cellDescription)
-        Start.cleanDockCell(pid, cellDescription)
+        if eventStatus.validCustomHandlers then
+            Start.cleanDockCell(pid, cellDescription)
+        end
     end)
 end
 
 function Start.OnServerExit(eventStatus)
-    DataManager.saveData(Start.scriptName, Start.data)
+    if eventStatus.validCustomHandlers then
+        DataManager.saveData(Start.scriptName, Start.data)
+    end
 end
 customEventHooks.registerHandler("OnServerExit", Start.OnServerExit)
 
 function Start.OnObjectActivate(eventStatus, pid, cellDescription, objects, players)
-    if not eventStatus.validCustomHandlers then
-        return
-    end
-    if Start.isPlayerChargen(pid) then
-        for _, obj in pairs(objects) do
-            if obj.uniqueIndex == Start.EXIT_DOOR then
-                Start.fixLogin(pid)
-                break
+    if eventStatus.validCustomHandlers then
+        if Start.isPlayerChargen(pid) then
+            for _, obj in pairs(objects) do
+                if obj.uniqueIndex == Start.EXIT_DOOR then
+                    Start.fixLogin(pid)
+                    break
+                end
             end
         end
     end
